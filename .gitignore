@@ -1,7 +1,7 @@
 node_modules
 .next
-out
-build
+/out
+/build
 .DS_Store
 *.pem
 npm-debug.log*

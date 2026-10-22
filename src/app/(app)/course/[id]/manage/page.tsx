@@ -18,6 +18,7 @@ import {
   courseUpdate,
 } from "@/app/actions/courses";
 import { uploadMaterial } from "@/app/actions/files";
+import { AddActivity } from "@/components/course/AddActivity";
 import { Reorderable } from "@/components/course/Reorderable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
@@ -511,142 +512,10 @@ export default async function ManagePage({
                 />
               )}
 
-              <div className="border-t border-[var(--color-line-soft)] bg-soft/40 p-3">
-                <div className="flex flex-wrap gap-2">
-                  {(["assign", "quiz", "forum", "resource"] as const).map((type) => (
-                    <details key={type} className="flex-1 min-w-[190px]">
-                      <summary className="btn-neutral btn-xs cursor-pointer">
-                        <Icon name="plus" size={12} />
-                        {type === "assign"
-                          ? "Assignment"
-                          : type === "quiz"
-                            ? "Quiz"
-                            : type === "forum"
-                              ? "Forum"
-                              : "Resource"}
-                      </summary>
-                      <form action={moduleStore} className="mt-2 grid gap-2 rounded-xl border border-[var(--color-line)] bg-white p-3">
-                        <input type="hidden" name="course_id" value={courseId} />
-                        <input type="hidden" name="section_id" value={section.id} />
-                        <input type="hidden" name="type" value={type} />
-                        <div className="field">
-                          <label className="label">Name</label>
-                          <input name="name" required className="input" />
-                        </div>
-                        <div className="field">
-                          <label className="label">Intro</label>
-                          <textarea name="intro" className="textarea min-h-[60px]" />
-                        </div>
+              <AddActivity courseId={courseId} sectionId={section.id} />
 
-                        {type === "assign" && (
-                          <>
-                            <div className="field">
-                              <label className="label">Due date (WIB)</label>
-                              <input type="datetime-local" name="duedate" className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Max grade</label>
-                              <input type="number" name="grade_max" defaultValue={100} className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Weight (%)</label>
-                              <input type="number" name="weight" min={0} step="0.01" defaultValue={40} className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Submission</label>
-                              <select name="submission_type" className="select">
-                                <option value="file">File</option>
-                                <option value="online">Online text</option>
-                                <option value="both">File + text</option>
-                              </select>
-                            </div>
-                            <label className="flex items-center gap-2 text-[12.5px] text-ink-2">
-                              <input type="checkbox" name="allow_late" defaultChecked className="h-4 w-4 accent-[#a12520]" />
-                              Allow late
-                            </label>
-                          </>
-                        )}
-
-                        {type === "quiz" && (
-                          <>
-                            <div className="field">
-                              <label className="label">Opens (WIB)</label>
-                              <input type="datetime-local" name="open_at" className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Closes (WIB)</label>
-                              <input type="datetime-local" name="close_at" className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Time limit (min)</label>
-                              <input type="number" name="time_limit" defaultValue={15} className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Max attempts</label>
-                              <input type="number" name="max_attempts" defaultValue={1} className="input" />
-                            </div>
-                            <div className="field">
-                              <label className="label">Max grade</label>
-                              <input
-                                type="number"
-                                name="grade_max"
-                                min={1}
-                                step="0.01"
-                                defaultValue={100}
-                                className="input"
-                              />
-                            </div>
-                            <div className="field">
-                              <label className="label">Weight (%)</label>
-                              <input
-                                type="number"
-                                name="weight"
-                                min={0}
-                                step="0.01"
-                                defaultValue={20}
-                                className="input"
-                              />
-                            </div>
-                            <p className="sm:col-span-2 text-[11.5px] text-ink-3">
-                              Soal ditambahkan setelah kuis dibuat melalui tombol <strong>Bank soal</strong>.
-                            </p>
-                          </>
-                        )}
-
-                        {type === "forum" && (
-                          <div className="field">
-                            <label className="label">Forum type</label>
-                            <select name="forum_type" className="select">
-                              <option value="general">General</option>
-                              <option value="qanda">Q&A</option>
-                              <option value="announcements">Announcements</option>
-                            </select>
-                          </div>
-                        )}
-
-                        {type === "resource" && (
-                          <>
-                            <div className="field">
-                              <label className="label">Kind</label>
-                              <select name="kind" className="select">
-                                <option value="url">URL</option>
-                                <option value="page">Page</option>
-                              </select>
-                            </div>
-                            <div className="field">
-                              <label className="label">URL</label>
-                              <input name="url" className="input" placeholder="https://" />
-                            </div>
-                          </>
-                        )}
-
-                        <SubmitButton className="btn-brand btn-sm">Add {type}</SubmitButton>
-                      </form>
-                    </details>
-                  ))}
-                </div>
-
-                <details className="mt-2">
+              <div className="border-t border-[var(--color-line-soft)] p-3">
+                <details>
                   <summary className="cursor-pointer text-[12px] font-semibold text-brand">
                     <Icon name="upload" size={12} className="mr-1 inline" />
                     Upload material file (max 20 MB)

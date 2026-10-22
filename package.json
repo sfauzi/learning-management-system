@@ -1,0 +1,32 @@
+{
+  "name": "learning-management-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LMS Telkom University replica — Next.js 15 + Supabase",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "node scripts/apply-schema.mjs",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:reset": "node scripts/apply-schema.mjs --reset && tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.58.0",
+    "next": "15.5.4",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "dotenv": "^17.2.1",
+    "tailwindcss": "^4.1.13",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

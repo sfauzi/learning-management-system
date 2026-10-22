@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { RouteProgress } from "@/components/ui/RouteProgress";
 import { getLocale } from "@/lib/i18n";
+import { inter } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   title: {
@@ -21,7 +22,7 @@ export default async function RootLayout({
 }) {
   const locale = await getLocale();
   return (
-    <html lang={locale}>
+    <html lang={locale} className={inter.variable}>
       <body>
         <Suspense fallback={null}>
           <RouteProgress />

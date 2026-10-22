@@ -13,12 +13,10 @@ import {
   reorderSections,
   sectionDestroy,
   sectionMove,
-  sectionStore,
   sectionUpdate,
   courseUpdate,
 } from "@/app/actions/courses";
-import { uploadMaterial } from "@/app/actions/files";
-import { AddActivity } from "@/components/course/AddActivity";
+import { ManagePanels } from "@/components/course/ManagePanels";
 import { Reorderable } from "@/components/course/Reorderable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
@@ -189,17 +187,14 @@ export default async function ManagePage({
       </details>
 
       {/* ---------------------------------------------------------- sections */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[15px] font-bold text-ink">Sections & activities</h2>
-        <form action={sectionStore} className="flex gap-1.5">
-          <input type="hidden" name="course_id" value={courseId} />
-          <input name="name" placeholder="New section name" className="input w-44 px-2.5 py-1.5 text-[12.5px]" />
-          <SubmitButton className="btn-brand btn-sm" pendingLabel="…">
-            <Icon name="plus" size={14} />
-            Section
-          </SubmitButton>
-        </form>
-      </div>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[15px] font-bold text-ink">Sections &amp; activities</h2>
+            <span className="text-[11.5px] text-ink-3">
+              {sections.length} section · {modules.length} aktivitas
+            </span>
+          </div>
 
       <Reorderable
         courseId={courseId}
@@ -512,81 +507,39 @@ export default async function ManagePage({
                 />
               )}
 
-              <AddActivity courseId={courseId} sectionId={section.id} />
-
-              <div className="border-t border-[var(--color-line-soft)] p-3">
-                <details>
-                  <summary className="cursor-pointer text-[12px] font-semibold text-brand">
-                    <Icon name="upload" size={12} className="mr-1 inline" />
-                    Upload material file (max 20 MB)
-                  </summary>
-                  <form action={uploadMaterial} className="mt-2 grid gap-2 rounded-xl border border-[var(--color-line)] bg-white p-3 sm:grid-cols-2">
-                    <input type="hidden" name="course_id" value={courseId} />
-                    <input type="hidden" name="section_id" value={section.id} />
-                    <div className="field">
-                      <label className="label">Title</label>
-                      <input name="name" className="input" placeholder="Optional — defaults to filename" />
-                    </div>
-                    <div className="field">
-                      <label className="label">File</label>
-                      <input type="file" name="file" required className="input py-1.5 text-[12px]" />
-                    </div>
-                    <div className="field sm:col-span-2">
-                      <label className="label">Intro</label>
-                      <input name="intro" className="input" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <SubmitButton className="btn-brand btn-sm" pendingLabel="Mengunggah…">
-                        Upload
-                      </SubmitButton>
-                    </div>
-                  </form>
-                </details>
-              </div>
             </section>
             ),
           };
         })}
       />
 
+        </div>
+
+        <aside className="space-y-4 lg:sticky lg:top-20">
+          <ManagePanels
+            courseId={courseId}
+            sections={sections.map((s) => ({ id: s.id, name: s.name, section: s.section }))}
+          />
+
       {/* -------------------------------------------------------- grade items */}
-      <section className="card mt-5 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="card-head">
           <h2 className="text-[14px] font-bold text-ink">Grade items</h2>
-          <form action={gradeItemStore} className="flex flex-wrap items-end gap-1.5">
-            <input type="hidden" name="course_id" value={courseId} />
-            <input name="name" placeholder="Item name" required className="input w-40 px-2 py-1.5 text-[12.5px]" />
-            <input
-              name="weight"
-              type="number"
-              placeholder="Weight"
-              defaultValue={10}
-              className="input w-20 px-2 py-1.5 text-[12.5px]"
-            />
-            <input
-              name="max_grade"
-              type="number"
-              placeholder="Max"
-              defaultValue={100}
-              className="input w-20 px-2 py-1.5 text-[12.5px]"
-            />
-            <SubmitButton className="btn-brand btn-sm" pendingLabel="…">
-              <Icon name="plus" size={13} />
-              Add
-            </SubmitButton>
-          </form>
+          <span className="badge-neutral">{items.length}</span>
         </div>
         <div className="divide-y divide-[var(--color-line-soft)]">
           {items.length === 0 && (
             <p className="px-4 py-3 text-[12.5px] text-ink-3">No grade items yet.</p>
           )}
           {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
-              <span className="badge-neutral capitalize">{item.item_type}</span>
-              <span className="flex-1 text-[13px] font-medium text-ink">{item.name}</span>
-              <span className="text-[12px] text-ink-3">
-                weight {Number(item.weight)}% · max {Number(item.max_grade)}
-              </span>
+            <div key={item.id} className="flex items-center gap-2 px-4 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-medium text-ink">{item.name}</p>
+                <p className="text-[11px] text-ink-3">
+                  <span className="capitalize">{item.item_type}</span> · bobot {Number(item.weight)}% · maks{" "}
+                  {Number(item.max_grade)}
+                </p>
+              </div>
               <form action={gradeItemDestroy}>
                 <input type="hidden" name="course_id" value={courseId} />
                 <input type="hidden" name="item_id" value={item.id} />
@@ -597,49 +550,84 @@ export default async function ManagePage({
             </div>
           ))}
         </div>
+        <form
+          action={gradeItemStore}
+          className="grid gap-2 border-t border-[var(--color-line-soft)] bg-soft/40 p-4"
+        >
+          <input type="hidden" name="course_id" value={courseId} />
+          <div className="field">
+            <label className="label">Nama item</label>
+            <input name="name" placeholder="mis. Ujian Akhir Semester" required className="input" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="field">
+              <label className="label">Bobot %</label>
+              <input name="weight" type="number" min={0} defaultValue={10} className="input" />
+            </div>
+            <div className="field">
+              <label className="label">Nilai maks</label>
+              <input name="max_grade" type="number" min={1} defaultValue={100} className="input" />
+            </div>
+          </div>
+          <SubmitButton className="btn-outline w-full" pendingLabel="…">
+            <Icon name="plus" size={13} />
+            Tambah item
+          </SubmitButton>
+        </form>
       </section>
 
       {/* -------------------------------------------------------- participants */}
-      <section id="participants" className="card mt-5 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="card-head">
-          <h2 className="text-[14px] font-bold text-ink">Participants</h2>
-          <form action={participantStore} className="flex items-end gap-1.5">
-            <input type="hidden" name="course_id" value={courseId} />
-            <select name="user_id" required className="select w-56 py-1.5 text-[12.5px]">
-              <option value="">Select a user…</option>
-              {candidates.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.full_name} ({c.username})
-                </option>
-              ))}
-            </select>
-            <SubmitButton className="btn-brand btn-sm" pendingLabel="…">
-              Enrol
-            </SubmitButton>
-          </form>
+          <h2 className="text-[14px] font-bold text-ink">Peserta</h2>
+          <span className="badge-neutral">{participants.length}</span>
         </div>
-        <div className="divide-y divide-[var(--color-line-soft)]">
+        <div className="max-h-[320px] divide-y divide-[var(--color-line-soft)] overflow-y-auto">
           {participants.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 px-4 py-2.5">
-              <Avatar name={p.profile?.full_name} size={30} />
+            <div key={p.id} className="flex items-center gap-2 px-4 py-2.5">
+              <Avatar name={p.profile?.full_name} size={28} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-ink">{p.profile?.full_name}</p>
-                <p className="truncate text-[11px] text-ink-3">{p.profile?.email}</p>
+                <p className="truncate text-[12.5px] font-semibold text-ink">
+                  {p.profile?.full_name}
+                </p>
+                <p className="truncate text-[11px] capitalize text-ink-3">{p.role}</p>
               </div>
-              <span className="badge-neutral capitalize">{p.role}</span>
               {p.role === "student" && (
                 <form action={participantDestroy}>
                   <input type="hidden" name="course_id" value={courseId} />
                   <input type="hidden" name="user_id" value={p.profile.id} />
                   <SubmitButton className="btn-danger btn-xs" confirm="Keluarkan peserta ini?" pendingLabel="…">
-                    Remove
+                    <Icon name="trash" size={12} />
                   </SubmitButton>
                 </form>
               )}
             </div>
           ))}
         </div>
+        <form
+          action={participantStore}
+          className="grid gap-2 border-t border-[var(--color-line-soft)] bg-soft/40 p-4"
+        >
+          <input type="hidden" name="course_id" value={courseId} />
+          <div className="field">
+            <label className="label">Daftarkan peserta</label>
+            <select name="user_id" required className="select">
+              <option value="">Pilih pengguna…</option>
+              {candidates.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name} ({c.username})
+                </option>
+              ))}
+            </select>
+          </div>
+          <SubmitButton className="btn-outline w-full" pendingLabel="…">
+            <Icon name="plus" size={13} />
+            Daftarkan
+          </SubmitButton>
+        </form>
       </section>
+        </aside>
+      </div>
     </div>
   );
 }

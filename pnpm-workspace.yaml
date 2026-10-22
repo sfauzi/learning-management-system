@@ -1,0 +1,5 @@
+# pnpm 12 reads dependency build-script approvals from this file.
+# esbuild powers `tsx` (scripts/seed.ts); sharp is Next.js' image pipeline.
+allowBuilds:
+  esbuild: true
+  sharp: true

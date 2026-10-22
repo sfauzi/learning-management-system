@@ -16,6 +16,7 @@ Referensi perilaku dan desain diambil dari observasi langsung situs aslinya (Moo
 | React | 19.1 |
 | Supabase | Postgres 17, Auth (GoTrue), Storage |
 | Styling | Tailwind CSS v4 (design token di `globals.css`) |
+| Font | Inter (self-hosted via `next/font/local`, `src/fonts/`) |
 | Bahasa | TypeScript (strict) |
 | Deploy | Vercel-ready |
 
@@ -44,10 +45,12 @@ Referensi perilaku dan desain diambil dari observasi langsung situs aslinya (Moo
 
 ### Dosen (`teacher`)
 - **My teaching** — daftar course yang diampu beserta statistik.
+- **Sidebar collapsible** — tombol di atas sidebar meringkasnya jadi rail ikon (68px); state disimpan di cookie `lms_sidebar` sehingga tetap konsisten setelah navigasi/reload.
 - **Kelola konten** (`/course/{id}/manage`):
   - **Section**: tambah, ubah (nama/ringkasan/visibilitas), hapus (cascade), naik/turun urutan, **drag & drop reorder** (juga long-press di layar sentuh).
   - **Aktivitas**: CRUD lengkap untuk Assignment (tenggat, nilai maks, bobot, jenis pengumpulan, allow late), Quiz (buka/tutup, batas waktu, percobaan, **nilai maks**, **bobot**), Forum, Resource (URL/page) + reorder (drag & drop).
   - **Tombol “Bank soal”** langsung pada baris aktivitas kuis menuju editor soal.
+  - **Panel kanan** — form tambah section / aktivitas / materi, serta kartu item penilaian dan peserta, berada di kolom kanan 330px yang sticky (mengikuti layout referensi), bukan menumpuk di bawah daftar aktivitas.
   - **Upload materi** — berkas maks 20 MB ke bucket privat `materials`, atau tautan URL.
   - **Item penilaian** — tambah/hapus item manual + bobot.
   - **Peserta** — daftarkan mahasiswa, keluarkan peserta.

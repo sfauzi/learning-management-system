@@ -52,7 +52,7 @@ export function Topbar({
             <Link
               key={item.href}
               href={item.href}
-              className={cn("nav-link", isActive(item.href) && "nav-link-active")}
+              className={cn("nav-link whitespace-nowrap", isActive(item.href) && "nav-link-active")}
             >
               {item.label}
             </Link>

@@ -192,7 +192,8 @@ export default async function ManagePage({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[15px] font-bold text-ink">Sections &amp; activities</h2>
             <span className="text-[11.5px] text-ink-3">
-              {sections.length} section · {modules.length} aktivitas
+              {sections.length} {sections.length === 1 ? "section" : "sections"} · {modules.length}{" "}
+              aktivitas
             </span>
           </div>
 

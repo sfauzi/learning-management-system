@@ -10,7 +10,6 @@ const PROTECTED = [
   "/notifications",
   "/user",
   "/admin",
-  "/lang",
 ];
 
 export async function middleware(request: NextRequest) {

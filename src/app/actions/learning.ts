@@ -6,12 +6,9 @@ import { canManageCourse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/supabase/admin";
 import { gradeAttempt, quizStatus } from "@/lib/quiz";
 import { notify } from "@/lib/data";
+import { formNumber } from "@/lib/utils";
 import type { Question } from "@/lib/types";
 
-function num(value: FormDataEntryValue | null, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
 function str(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
@@ -20,8 +17,8 @@ function str(value: FormDataEntryValue | null) {
 
 export async function gradeSubmission(formData: FormData) {
   const user = await requireUser();
-  const submissionId = num(formData.get("submission_id"));
-  const grade = num(formData.get("grade"));
+  const submissionId = formNumber(formData.get("submission_id"));
+  const grade = formNumber(formData.get("grade"));
 
   const { data: submission } = await db()
     .from("assignment_submissions")
@@ -107,7 +104,7 @@ export async function gradeSubmission(formData: FormData) {
 
 export async function startQuiz(formData: FormData) {
   const user = await requireUser();
-  const quizId = num(formData.get("quiz_id"));
+  const quizId = formNumber(formData.get("quiz_id"));
 
   const { data: quiz } = await db().from("quizzes").select("*").eq("id", quizId).maybeSingle();
   if (!quiz) redirect("/my");
@@ -149,7 +146,7 @@ export async function startQuiz(formData: FormData) {
 
 export async function submitQuiz(formData: FormData) {
   const user = await requireUser();
-  const attemptId = num(formData.get("attempt_id"));
+  const attemptId = formNumber(formData.get("attempt_id"));
 
   const { data: attempt } = await db()
     .from("quiz_attempts")
@@ -254,7 +251,7 @@ async function mirrorQuizGrade(
 /** Lecturer grades an attempt that contains essay answers. */
 export async function gradeQuizAttempt(formData: FormData) {
   const user = await requireUser();
-  const attemptId = num(formData.get("attempt_id"));
+  const attemptId = formNumber(formData.get("attempt_id"));
 
   const { data: attempt } = await db()
     .from("quiz_attempts")
@@ -271,7 +268,7 @@ export async function gradeQuizAttempt(formData: FormData) {
   };
   if (!(await canManageCourse(user, quiz.course_id))) return;
 
-  const score = Math.min(Math.max(num(formData.get("score")), 0), Number(quiz.grade_max));
+  const score = Math.min(Math.max(formNumber(formData.get("score")), 0), Number(quiz.grade_max));
 
   await db()
     .from("quiz_attempts")
@@ -322,7 +319,7 @@ async function replaceOptions(
       type === "truefalse"
         ? ["Benar", "Salah"]
         : [0, 1, 2, 3, 4, 5, 6, 7].map((i) => str(formData.get(`option_${i}`)));
-    const correct = num(formData.get("correct"), -1);
+    const correct = formNumber(formData.get("correct"), -1);
 
     const rows = labels
       .map((label, i) => ({ label: label.trim(), i }))
@@ -360,7 +357,7 @@ async function replaceOptions(
 }
 
 export async function questionStore(formData: FormData) {
-  const quizId = num(formData.get("quiz_id"));
+  const quizId = formNumber(formData.get("quiz_id"));
   await guardQuiz(quizId);
 
   const type = str(formData.get("type")) || "multichoice";
@@ -380,7 +377,7 @@ export async function questionStore(formData: FormData) {
       question: str(formData.get("question")) || "New question",
       explanation: str(formData.get("explanation")) || null,
       type,
-      points: num(formData.get("points"), 1),
+      points: formNumber(formData.get("points"), 1),
       sortorder: (last?.sortorder ?? 0) + 1,
     })
     .select("id")
@@ -392,9 +389,9 @@ export async function questionStore(formData: FormData) {
 }
 
 export async function questionUpdate(formData: FormData) {
-  const quizId = num(formData.get("quiz_id"));
+  const quizId = formNumber(formData.get("quiz_id"));
   await guardQuiz(quizId);
-  const id = num(formData.get("question_id"));
+  const id = formNumber(formData.get("question_id"));
   const type = str(formData.get("type")) || "multichoice";
 
   await db()
@@ -403,7 +400,7 @@ export async function questionUpdate(formData: FormData) {
       question: str(formData.get("question")) || "Question",
       explanation: str(formData.get("explanation")) || null,
       type,
-      points: num(formData.get("points"), 1),
+      points: formNumber(formData.get("points"), 1),
     })
     .eq("id", id)
     .eq("quiz_id", quizId);
@@ -414,20 +411,20 @@ export async function questionUpdate(formData: FormData) {
 }
 
 export async function questionDestroy(formData: FormData) {
-  const quizId = num(formData.get("quiz_id"));
+  const quizId = formNumber(formData.get("quiz_id"));
   await guardQuiz(quizId);
   await db()
     .from("quiz_questions")
     .delete()
-    .eq("id", num(formData.get("question_id")))
+    .eq("id", formNumber(formData.get("question_id")))
     .eq("quiz_id", quizId);
   revalidatePath(`/mod/quiz/${quizId}/build`);
 }
 
 export async function questionDuplicate(formData: FormData) {
-  const quizId = num(formData.get("quiz_id"));
+  const quizId = formNumber(formData.get("quiz_id"));
   await guardQuiz(quizId);
-  const id = num(formData.get("question_id"));
+  const id = formNumber(formData.get("question_id"));
 
   const { data: original } = await db()
     .from("quiz_questions")
@@ -464,9 +461,9 @@ export async function questionDuplicate(formData: FormData) {
 }
 
 export async function questionMove(formData: FormData) {
-  const quizId = num(formData.get("quiz_id"));
+  const quizId = formNumber(formData.get("quiz_id"));
   await guardQuiz(quizId);
-  const id = num(formData.get("question_id"));
+  const id = formNumber(formData.get("question_id"));
   const dir = str(formData.get("direction")) === "up" ? -1 : 1;
 
   const { data: list } = await db()
@@ -490,7 +487,7 @@ export async function questionMove(formData: FormData) {
 
 export async function discussionStore(formData: FormData) {
   const user = await requireUser();
-  const forumId = num(formData.get("forum_id"));
+  const forumId = formNumber(formData.get("forum_id"));
   const name = str(formData.get("name"));
   const message = str(formData.get("message"));
   if (!name || !message) redirect(`/mod/forum/${forumId}?error=empty`);
@@ -513,7 +510,7 @@ export async function discussionStore(formData: FormData) {
 
 export async function postStore(formData: FormData) {
   const user = await requireUser();
-  const discussionId = num(formData.get("discussion_id"));
+  const discussionId = formNumber(formData.get("discussion_id"));
   const message = str(formData.get("message"));
   if (!message) redirect(`/mod/forum/discuss/${discussionId}?error=empty`);
 
@@ -559,7 +556,7 @@ export async function eventStore(formData: FormData) {
 
   await db().from("calendar_events").insert({
     user_id: user.id,
-    course_id: num(formData.get("course_id")) || null,
+    course_id: formNumber(formData.get("course_id")) || null,
     name,
     description: str(formData.get("description")) || null,
     start_at: new Date(startAt).toISOString(),
@@ -574,7 +571,7 @@ export async function eventStore(formData: FormData) {
 
 export async function eventDestroy(formData: FormData) {
   const user = await requireUser();
-  const id = num(formData.get("event_id"));
+  const id = formNumber(formData.get("event_id"));
 
   const { data: event } = await db()
     .from("calendar_events")

@@ -12,12 +12,14 @@ Referensi perilaku dan desain diambil dari observasi langsung situs aslinya (Moo
 
 | Komponen | Versi |
 |---|---|
-| Next.js | 15.5 (App Router, Server Actions, RSC) |
+| Next.js | 15.5.28 (App Router, Server Actions, RSC) |
 | React | 19.1 |
 | Supabase | Postgres 17, Auth (GoTrue), Storage |
 | Styling | Tailwind CSS v4 (design token di `globals.css`) |
 | Bahasa | TypeScript (strict) |
 | Deploy | Vercel-ready |
+
+> **Zona waktu:** semua tanggal/waktu yang diisi dosen dan ditampilkan ke pengguna adalah **WIB (Asia/Jakarta, UTC+7)**, apa pun timezone server-nya. Konversi terpusat di `src/lib/time.ts` (`wibInputToIso` / `isoToWibInput` / `wibParts`).
 
 ---
 
@@ -43,8 +45,9 @@ Referensi perilaku dan desain diambil dari observasi langsung situs aslinya (Moo
 ### Dosen (`teacher`)
 - **My teaching** — daftar course yang diampu beserta statistik.
 - **Kelola konten** (`/course/{id}/manage`):
-  - **Section**: tambah, ubah (nama/ringkasan/visibilitas), hapus (cascade), naik/turun urutan.
-  - **Aktivitas**: CRUD lengkap untuk Assignment (tenggat, nilai maks, jenis pengumpulan, allow late), Quiz (buka/tutup, batas waktu, percobaan), Forum, Resource (URL/page) + reorder.
+  - **Section**: tambah, ubah (nama/ringkasan/visibilitas), hapus (cascade), naik/turun urutan, **drag & drop reorder** (juga long-press di layar sentuh).
+  - **Aktivitas**: CRUD lengkap untuk Assignment (tenggat, nilai maks, bobot, jenis pengumpulan, allow late), Quiz (buka/tutup, batas waktu, percobaan, **nilai maks**, **bobot**), Forum, Resource (URL/page) + reorder (drag & drop).
+  - **Tombol “Bank soal”** langsung pada baris aktivitas kuis menuju editor soal.
   - **Upload materi** — berkas maks 20 MB ke bucket privat `materials`, atau tautan URL.
   - **Item penilaian** — tambah/hapus item manual + bobot.
   - **Peserta** — daftarkan mahasiswa, keluarkan peserta.
@@ -163,6 +166,16 @@ A ≥ 85 · AB ≥ 75 · B ≥ 70 · BC ≥ 65 · C ≥ 60 · D ≥ 50 · E < 50
 ```
 
 Nilai kuis = skor terbaik dari seluruh attempt yang selesai; nilai tugas dan esai yang dinilai dosen otomatis tercermin ke gradebook.
+
+#### Alur nilai kuis (yang sebelumnya kosong)
+
+1. Dosen menambah aktivitas **Quiz** di *Kelola konten* dan mengisi **Max grade** + **Bobot** (default 100 dan 20%).
+2. Saat itu juga dibuatkan baris `grade_items` (`item_type = 'quiz'`) sehingga kuis langsung tampil di gradebook — walau belum ada attempt.
+3. Dosen menambah soal lewat tombol **Bank soal** (`/mod/quiz/{id}/build`), masing-masing dengan poin sendiri.
+4. Mahasiswa mengerjakan; skor = `(poin benar ÷ total poin) × max grade kuis`.
+5. Attempt selesai → nilai **terbaik** dari semua attempt di-*mirror* ke `grade_grades`, dan grade item di-*sync* ulang setiap kali dosen mengubah max grade/bobot.
+
+> Penyebab nilai kuis dulu selalu 0: form kuis tidak punya field max grade, sehingga `Number(null)` menyimpan `grade_max = 0` dan setiap skor dikalikan 0. Migration `0003_repair_quiz_grading.sql` memperbaiki data lama, menghitung ulang skor, dan memasang `CHECK (grade_max > 0)` plus unique index `grade_items_activity_uniq` agar tidak terulang.
 
 ---
 

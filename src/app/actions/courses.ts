@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { canManageCourse, isStaff, requireUser } from "@/lib/auth";
 import { db } from "@/lib/supabase/admin";
 import { notify } from "@/lib/data";
+import { formNumber, wibInputToIso } from "@/lib/utils";
 
 async function guardManage(courseId: number) {
   const user = await requireUser();
@@ -13,20 +14,79 @@ async function guardManage(courseId: number) {
   return user;
 }
 
-function num(value: FormDataEntryValue | null, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function str(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
+}
+
+/**
+ * Keeps the gradebook row that mirrors an activity in sync with its settings.
+ * Without this a freshly created quiz had no grade item at all, so nothing
+ * appeared in the gradebook until somebody happened to attempt it.
+ */
+async function syncGradeItem(
+  courseId: number,
+  itemType: "assign" | "quiz",
+  itemId: number,
+  name: string,
+  maxGrade: number,
+  weight: number
+) {
+  const { data: existing } = await db()
+    .from("grade_items")
+    .select("id")
+    .eq("course_id", courseId)
+    .eq("item_type", itemType)
+    .eq("item_id", itemId)
+    .maybeSingle();
+
+  if (existing) {
+    await db()
+      .from("grade_items")
+      .update({ name, max_grade: maxGrade, weight })
+      .eq("id", existing.id);
+    return existing.id;
+  }
+
+  const { data: created, error } = await db()
+    .from("grade_items")
+    .insert({
+      course_id: courseId,
+      item_type: itemType,
+      item_id: itemId,
+      name,
+      max_grade: maxGrade,
+      weight,
+      sortorder: itemType === "quiz" ? 98 : 99,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    // a concurrent edit created the row first — update it instead of failing
+    const { data: again } = await db()
+      .from("grade_items")
+      .select("id")
+      .eq("course_id", courseId)
+      .eq("item_type", itemType)
+      .eq("item_id", itemId)
+      .maybeSingle();
+    if (again) {
+      await db()
+        .from("grade_items")
+        .update({ name, max_grade: maxGrade, weight })
+        .eq("id", again.id);
+    }
+    return again?.id ?? null;
+  }
+
+  return created?.id ?? null;
 }
 
 /* ------------------------------------------------------------------ enrolment */
 
 export async function enrolCourse(formData: FormData) {
   const user = await requireUser();
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   const key = str(formData.get("enrol_key"));
   const back = str(formData.get("back")) || "/course";
 
@@ -56,7 +116,7 @@ export async function enrolCourse(formData: FormData) {
 
 export async function unenrolCourse(formData: FormData) {
   const user = await requireUser();
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
 
   await db()
     .from("enrollments")
@@ -72,7 +132,7 @@ export async function unenrolCourse(formData: FormData) {
 
 export async function toggleModuleComplete(formData: FormData) {
   const user = await requireUser();
-  const moduleId = num(formData.get("module_id"));
+  const moduleId = formNumber(formData.get("module_id"));
 
   const { data: mod } = await db()
     .from("course_modules")
@@ -105,7 +165,7 @@ export async function toggleModuleComplete(formData: FormData) {
 /* ------------------------------------------------------------ course sections */
 
 export async function sectionStore(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
 
   const { data: last } = await db()
@@ -129,9 +189,9 @@ export async function sectionStore(formData: FormData) {
 }
 
 export async function sectionUpdate(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
-  const id = num(formData.get("section_id"));
+  const id = formNumber(formData.get("section_id"));
 
   await db()
     .from("course_sections")
@@ -148,9 +208,9 @@ export async function sectionUpdate(formData: FormData) {
 }
 
 export async function sectionDestroy(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
-  const id = num(formData.get("section_id"));
+  const id = formNumber(formData.get("section_id"));
 
   await db().from("course_sections").delete().eq("id", id).eq("course_id", courseId);
 
@@ -159,9 +219,9 @@ export async function sectionDestroy(formData: FormData) {
 }
 
 export async function sectionMove(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
-  const id = num(formData.get("section_id"));
+  const id = formNumber(formData.get("section_id"));
   const dir = str(formData.get("direction")) === "up" ? -1 : 1;
 
   const { data: current } = await db()
@@ -187,19 +247,70 @@ export async function sectionMove(formData: FormData) {
   revalidatePath(`/course/${courseId}`);
 }
 
+/* --------------------------------------------------------- drag & drop order */
+
+function parseOrder(raw: FormDataEntryValue | null): number[] {
+  try {
+    const parsed = JSON.parse(String(raw ?? "[]"));
+    return Array.isArray(parsed) ? parsed.map(Number).filter((n) => Number.isFinite(n)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Persists the order produced by dragging section cards. */
+export async function reorderSections(formData: FormData) {
+  const courseId = formNumber(formData.get("course_id"));
+  await guardManage(courseId);
+  const order = parseOrder(formData.get("order"));
+  if (!order.length) return;
+
+  for (const [index, id] of order.entries()) {
+    await db()
+      .from("course_sections")
+      .update({ section: index })
+      .eq("id", id)
+      .eq("course_id", courseId);
+  }
+
+  revalidatePath(`/course/${courseId}/manage`);
+  revalidatePath(`/course/${courseId}`);
+}
+
+/** Persists the order produced by dragging activities inside one section. */
+export async function reorderModules(formData: FormData) {
+  const courseId = formNumber(formData.get("course_id"));
+  await guardManage(courseId);
+  const order = parseOrder(formData.get("order"));
+  if (!order.length) return;
+
+  for (const [index, id] of order.entries()) {
+    await db()
+      .from("course_modules")
+      .update({ sortorder: index + 1 })
+      .eq("id", id)
+      .eq("course_id", courseId);
+  }
+
+  revalidatePath(`/course/${courseId}/manage`);
+  revalidatePath(`/course/${courseId}`);
+}
+
 /* --------------------------------------------------------------- activities */
 
 const TYPES = ["assign", "quiz", "forum", "resource"] as const;
 type ModuleType = (typeof TYPES)[number];
 
 export async function moduleStore(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   const user = await guardManage(courseId);
 
-  const sectionId = num(formData.get("section_id"));
+  const sectionId = formNumber(formData.get("section_id"));
   const type = str(formData.get("type")) as ModuleType;
   const name = str(formData.get("name")) || "New activity";
   const intro = str(formData.get("intro")) || null;
+  const gradeMax = formNumber(formData.get("grade_max"), 100);
+  const weight = formNumber(formData.get("weight"), 10);
   if (!TYPES.includes(type)) return;
 
   let instanceId: number | null = null;
@@ -211,14 +322,15 @@ export async function moduleStore(formData: FormData) {
         course_id: courseId,
         name,
         description: intro,
-        duedate: str(formData.get("duedate")) || null,
-        grade_max: num(formData.get("grade_max"), 100),
+        duedate: wibInputToIso(str(formData.get("duedate"))),
+        grade_max: gradeMax,
         submission_type: (str(formData.get("submission_type")) || "file") as string,
         allow_late: formData.get("allow_late") === "on",
       })
       .select("id")
       .single();
     instanceId = data?.id ?? null;
+    if (instanceId) await syncGradeItem(courseId, "assign", instanceId, name, gradeMax, weight);
   } else if (type === "quiz") {
     const { data } = await db()
       .from("quizzes")
@@ -226,15 +338,16 @@ export async function moduleStore(formData: FormData) {
         course_id: courseId,
         name,
         intro,
-        open_at: str(formData.get("open_at")) || null,
-        close_at: str(formData.get("close_at")) || null,
-        time_limit: num(formData.get("time_limit"), 0) || null,
-        max_attempts: num(formData.get("max_attempts"), 1),
-        grade_max: num(formData.get("grade_max"), 100),
+        open_at: wibInputToIso(str(formData.get("open_at"))),
+        close_at: wibInputToIso(str(formData.get("close_at"))),
+        time_limit: formNumber(formData.get("time_limit"), 0) || null,
+        max_attempts: formNumber(formData.get("max_attempts"), 1),
+        grade_max: gradeMax,
       })
       .select("id")
       .single();
     instanceId = data?.id ?? null;
+    if (instanceId) await syncGradeItem(courseId, "quiz", instanceId, name, gradeMax, weight);
   } else if (type === "forum") {
     const { data } = await db()
       .from("forums")
@@ -282,19 +395,6 @@ export async function moduleStore(formData: FormData) {
     sortorder: (last?.sortorder ?? 0) + 1,
   });
 
-  // keep the gradebook in sync with new graded activities
-  if (type === "assign" && instanceId) {
-    await db().from("grade_items").insert({
-      course_id: courseId,
-      item_type: "assign",
-      item_id: instanceId,
-      name,
-      max_grade: num(formData.get("grade_max"), 100),
-      weight: 1,
-      sortorder: 90,
-    });
-  }
-
   await notify(
     user.id,
     "Aktivitas ditambahkan",
@@ -307,9 +407,9 @@ export async function moduleStore(formData: FormData) {
 }
 
 export async function moduleUpdate(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
-  const id = num(formData.get("module_id"));
+  const id = formNumber(formData.get("module_id"));
 
   const { data: mod } = await db()
     .from("course_modules")
@@ -321,6 +421,8 @@ export async function moduleUpdate(formData: FormData) {
 
   const name = str(formData.get("name")) || mod.name;
   const intro = str(formData.get("intro")) || null;
+  const gradeMax = formNumber(formData.get("grade_max"), 100);
+  const weight = formNumber(formData.get("weight"), 10);
 
   await db()
     .from("course_modules")
@@ -334,25 +436,27 @@ export async function moduleUpdate(formData: FormData) {
         .update({
           name,
           description: intro,
-          duedate: str(formData.get("duedate")) || null,
-          grade_max: num(formData.get("grade_max"), 100),
+          duedate: wibInputToIso(str(formData.get("duedate"))),
+          grade_max: gradeMax,
           submission_type: str(formData.get("submission_type")) || "file",
           allow_late: formData.get("allow_late") === "on",
         })
         .eq("id", mod.instance_id);
+      await syncGradeItem(courseId, "assign", mod.instance_id, name, gradeMax, weight);
     } else if (mod.type === "quiz") {
       await db()
         .from("quizzes")
         .update({
           name,
           intro,
-          open_at: str(formData.get("open_at")) || null,
-          close_at: str(formData.get("close_at")) || null,
-          time_limit: num(formData.get("time_limit"), 0) || null,
-          max_attempts: num(formData.get("max_attempts"), 1),
-          grade_max: num(formData.get("grade_max"), 100),
+          open_at: wibInputToIso(str(formData.get("open_at"))),
+          close_at: wibInputToIso(str(formData.get("close_at"))),
+          time_limit: formNumber(formData.get("time_limit"), 0) || null,
+          max_attempts: formNumber(formData.get("max_attempts"), 1),
+          grade_max: gradeMax,
         })
         .eq("id", mod.instance_id);
+      await syncGradeItem(courseId, "quiz", mod.instance_id, name, gradeMax, weight);
     } else if (mod.type === "forum") {
       await db().from("forums").update({ name, intro }).eq("id", mod.instance_id);
     } else {
@@ -373,9 +477,9 @@ export async function moduleUpdate(formData: FormData) {
 }
 
 export async function moduleDestroy(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
-  const id = num(formData.get("module_id"));
+  const id = formNumber(formData.get("module_id"));
 
   const { data: mod } = await db()
     .from("course_modules")
@@ -404,9 +508,9 @@ export async function moduleDestroy(formData: FormData) {
 }
 
 export async function moduleMove(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
-  const id = num(formData.get("module_id"));
+  const id = formNumber(formData.get("module_id"));
   const dir = str(formData.get("direction")) === "up" ? -1 : 1;
 
   const { data: current } = await db()
@@ -438,28 +542,28 @@ export async function moduleMove(formData: FormData) {
 /* --------------------------------------------------------------- grade items */
 
 export async function gradeItemStore(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
 
   await db().from("grade_items").insert({
     course_id: courseId,
     item_type: "manual",
     name: str(formData.get("name")) || "Manual item",
-    max_grade: num(formData.get("max_grade"), 100),
-    weight: num(formData.get("weight"), 10),
-    sortorder: num(formData.get("sortorder"), 50),
+    max_grade: formNumber(formData.get("max_grade"), 100),
+    weight: formNumber(formData.get("weight"), 10),
+    sortorder: formNumber(formData.get("sortorder"), 50),
   });
 
   revalidatePath(`/course/${courseId}/manage`);
 }
 
 export async function gradeItemDestroy(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
   await db()
     .from("grade_items")
     .delete()
-    .eq("id", num(formData.get("item_id")))
+    .eq("id", formNumber(formData.get("item_id")))
     .eq("course_id", courseId);
 
   revalidatePath(`/course/${courseId}/manage`);
@@ -468,7 +572,7 @@ export async function gradeItemDestroy(formData: FormData) {
 /* -------------------------------------------------------------- participants */
 
 export async function participantStore(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
   const userId = str(formData.get("user_id"));
   if (!userId) return;
@@ -487,7 +591,7 @@ export async function participantStore(formData: FormData) {
 }
 
 export async function participantDestroy(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
 
   await db()
@@ -503,7 +607,7 @@ export async function participantDestroy(formData: FormData) {
 /* ------------------------------------------------------------ course settings */
 
 export async function courseUpdate(formData: FormData) {
-  const courseId = num(formData.get("course_id"));
+  const courseId = formNumber(formData.get("course_id"));
   await guardManage(courseId);
 
   const { data: existing } = await db()
@@ -524,11 +628,11 @@ export async function courseUpdate(formData: FormData) {
       visible: formData.get("visible") === "on",
       self_enrol: formData.get("self_enrol") === "on",
       enrol_key: str(formData.get("enrol_key")) || null,
-      credits: num(formData.get("credits"), 3),
-      semester: num(formData.get("semester"), 1),
+      credits: formNumber(formData.get("credits"), 3),
+      semester: formNumber(formData.get("semester"), 1),
       academic_year: str(formData.get("academic_year")) || null,
       teacher_id: str(formData.get("teacher_id")) || null,
-      category_id: num(formData.get("category_id")) || null,
+      category_id: formNumber(formData.get("category_id")) || null,
     })
     .eq("id", courseId);
 

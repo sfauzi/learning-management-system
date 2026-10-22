@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
+import { RouteProgress } from "@/components/ui/RouteProgress";
 import { getLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = {
@@ -20,7 +22,12 @@ export default async function RootLayout({
   const locale = await getLocale();
   return (
     <html lang={locale}>
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <RouteProgress />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }

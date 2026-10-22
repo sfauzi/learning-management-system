@@ -1,3 +1,7 @@
+import { toDate, wibParts } from "@/lib/time";
+
+export { toDate, isoToWibInput, wibInputToIso, wibDateKey, wibParts } from "@/lib/time";
+
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
@@ -20,36 +24,35 @@ export function days(locale = "id") {
   return locale === "id" ? DAYS_ID : DAYS_EN;
 }
 
-export function toDate(value: string | Date | null | undefined): Date | null {
-  if (!value) return null;
-  const d = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
+/** Dates are always rendered in WIB, whatever the server timezone is. */
 export function formatDate(
   value: string | Date | null | undefined,
   opts: { locale?: string; withYear?: boolean; short?: boolean } = {}
 ) {
-  const d = toDate(value);
-  if (!d) return "—";
+  const p = wibParts(value);
+  if (!p) return "—";
   const locale = opts.locale ?? "id";
-  const month = months(locale)[d.getMonth()];
+  const month = months(locale)[p.month - 1];
   const label = opts.short ? month.slice(0, 3) : month;
-  return `${d.getDate()} ${label}${opts.withYear === false ? "" : ` ${d.getFullYear()}`}`;
+  return `${p.day} ${label}${opts.withYear === false ? "" : ` ${p.year}`}`;
 }
 
-export function formatDateTime(value: string | Date | null | undefined, locale = "id") {
-  const d = toDate(value);
-  if (!d) return "—";
-  return `${formatDate(d, { locale })} · ${String(d.getHours()).padStart(2, "0")}:${String(
-    d.getMinutes()
-  ).padStart(2, "0")}`;
+export function formatDateTime(
+  value: string | Date | null | undefined,
+  locale = "id",
+  opts: { withZone?: boolean } = {}
+) {
+  const p = wibParts(value);
+  if (!p) return "—";
+  const hh = String(p.hour).padStart(2, "0");
+  const mm = String(p.minute).padStart(2, "0");
+  return `${formatDate(value, { locale })} · ${hh}:${mm}${opts.withZone ? " WIB" : ""}`;
 }
 
 export function formatTime(value: string | Date | null | undefined) {
-  const d = toDate(value);
-  if (!d) return "—";
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const p = wibParts(value);
+  if (!p) return "—";
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
 }
 
 export function timeAgo(value: string | Date | null | undefined, locale = "id") {
@@ -89,6 +92,14 @@ export function courseInitials(fullname: string) {
     .map((w) => w[0]!.toUpperCase())
     .join("");
   return out.slice(0, 2) || "CRS";
+}
+
+export function formNumber(value: FormDataEntryValue | null | undefined, fallback = 0): number {
+  if (value === null || value === undefined) return fallback;
+  const raw = String(value).trim();
+  if (raw === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 export function toNumber(value: unknown, fallback = 0): number {

@@ -9,6 +9,8 @@ import {
   moduleUpdate,
   participantDestroy,
   participantStore,
+  reorderModules,
+  reorderSections,
   sectionDestroy,
   sectionMove,
   sectionStore,
@@ -16,23 +18,20 @@ import {
   courseUpdate,
 } from "@/app/actions/courses";
 import { uploadMaterial } from "@/app/actions/files";
+import { Reorderable } from "@/components/course/Reorderable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
 import { SubmitButton } from "@/components/ui/SubmitButton";
 import { canManageCourse, requireUser } from "@/lib/auth";
 import { getCourseContent, getParticipants } from "@/lib/data";
 import { db } from "@/lib/supabase/admin";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, isoToWibInput } from "@/lib/utils";
 import type { GradeItem, Profile } from "@/lib/types";
 
 export const metadata = { title: "Manage content" };
 
-function toLocalInput(value: string | null) {
-  if (!value) return "";
-  const d = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+/** datetime-local value in WIB, whatever timezone the server runs in. */
+const toLocalInput = (value: string | null) => isoToWibInput(value);
 
 export default async function ManagePage({
   params,
@@ -201,11 +200,17 @@ export default async function ManagePage({
         </form>
       </div>
 
-      <div className="space-y-4">
-        {sections.map((section) => {
+      <Reorderable
+        courseId={courseId}
+        kind="sections"
+        action={reorderSections}
+        label="Urutan bagian"
+        items={sections.map((section) => {
           const sectionModules = modules.filter((m) => m.section_id === section.id);
-          return (
-            <section key={section.id} className="card overflow-hidden">
+          return {
+            id: section.id,
+            content: (
+            <section className="card overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-line-soft)] bg-soft/60 px-4 py-2.5">
                 <div className="flex items-center gap-2">
                   <span className="badge-brand">{section.section + 1}</span>
@@ -241,20 +246,28 @@ export default async function ManagePage({
                 </div>
               </div>
 
-              <div className="divide-y divide-[var(--color-line-soft)]">
-                {sectionModules.length === 0 && (
-                  <p className="px-4 py-3 text-[12.5px] text-ink-3">No activities yet.</p>
-                )}
-
-                {sectionModules.map((mod) => {
+              {sectionModules.length === 0 ? (
+                <p className="px-4 py-3 text-[12.5px] text-ink-3">No activities yet.</p>
+              ) : (
+                <Reorderable
+                  courseId={courseId}
+                  kind="modules"
+                  sectionId={section.id}
+                  action={reorderModules}
+                  label="Urutan aktivitas"
+                  handleInside
+                  listClassName="divide-y divide-[var(--color-line-soft)]"
+                  items={sectionModules.map((mod) => {
                   const assignment =
                     mod.type === "assign" && mod.instance_id ? instances.assignments[mod.instance_id] : null;
                   const quiz = mod.type === "quiz" && mod.instance_id ? instances.quizzes[mod.instance_id] : null;
                   const resource =
                     mod.type === "resource" && mod.instance_id ? instances.resources[mod.instance_id] : null;
 
-                  return (
-                    <div key={mod.id} className="px-4 py-3">
+                  return {
+                    id: mod.id,
+                    content: (
+                    <div className="px-4 py-3 pl-10">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
                           <Icon
@@ -274,6 +287,16 @@ export default async function ManagePage({
                         <span className="badge-neutral capitalize">{mod.type}</span>
                         {!mod.visible && <span className="badge-warn">Hidden</span>}
                         <span className="ml-auto flex items-center gap-1">
+                          {mod.type === "quiz" && mod.instance_id && (
+                            <Link
+                              href={`/mod/quiz/${mod.instance_id}/build`}
+                              className="btn-outline btn-xs"
+                              title="Kelola bank soal kuis ini"
+                            >
+                              <Icon name="list" size={12} />
+                              Bank soal
+                            </Link>
+                          )}
                           <form action={moduleMove}>
                             <input type="hidden" name="course_id" value={courseId} />
                             <input type="hidden" name="module_id" value={mod.id} />
@@ -301,8 +324,10 @@ export default async function ManagePage({
                       </div>
 
                       <p className="mt-1 pl-9 text-[11.5px] text-ink-3">
-                        {assignment?.duedate ? `Due ${formatDateTime(assignment.duedate)}` : null}
-                        {quiz ? `${quiz.max_attempts} attempts · ${quiz.time_limit ?? "no"} min` : null}
+                        {assignment?.duedate ? `Due ${formatDateTime(assignment.duedate)} WIB` : null}
+                        {quiz
+                          ? `${quiz.max_attempts} attempts · ${quiz.time_limit ?? "no"} min · max ${Number(quiz.grade_max)}`
+                          : null}
                         {resource?.kind ? `Resource (${resource.kind})` : null}
                       </p>
 
@@ -329,7 +354,7 @@ export default async function ManagePage({
                           {mod.type === "assign" && (
                             <>
                               <div className="field">
-                                <label className="label">Due date</label>
+                                <label className="label">Due date (WIB)</label>
                                 <input
                                   type="datetime-local"
                                   name="duedate"
@@ -343,6 +368,17 @@ export default async function ManagePage({
                                   type="number"
                                   name="grade_max"
                                   defaultValue={assignment?.grade_max ?? 100}
+                                  className="input"
+                                />
+                              </div>
+                              <div className="field">
+                                <label className="label">Weight (%)</label>
+                                <input
+                                  type="number"
+                                  name="weight"
+                                  min={0}
+                                  step="0.01"
+                                  defaultValue={10}
                                   className="input"
                                 />
                               </div>
@@ -408,6 +444,36 @@ export default async function ManagePage({
                                   className="input"
                                 />
                               </div>
+                              <div className="field">
+                                <label className="label">Max grade</label>
+                                <input
+                                  type="number"
+                                  name="grade_max"
+                                  min={1}
+                                  step="0.01"
+                                  defaultValue={Number(quiz?.grade_max ?? 100)}
+                                  className="input"
+                                />
+                              </div>
+                              <div className="field">
+                                <label className="label">Weight (%)</label>
+                                <input
+                                  type="number"
+                                  name="weight"
+                                  min={0}
+                                  step="0.01"
+                                  defaultValue={1}
+                                  className="input"
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <Link
+                                  href={`/mod/quiz/${mod.instance_id}/build`}
+                                  className="text-[12px] font-semibold text-brand hover:underline"
+                                >
+                                  Kelola bank soal kuis ini →
+                                </Link>
+                              </div>
                             </>
                           )}
 
@@ -439,9 +505,11 @@ export default async function ManagePage({
                         </form>
                       </details>
                     </div>
-                  );
+                    ),
+                  };
                 })}
-              </div>
+                />
+              )}
 
               <div className="border-t border-[var(--color-line-soft)] bg-soft/40 p-3">
                 <div className="flex flex-wrap gap-2">
@@ -473,12 +541,16 @@ export default async function ManagePage({
                         {type === "assign" && (
                           <>
                             <div className="field">
-                              <label className="label">Due date</label>
+                              <label className="label">Due date (WIB)</label>
                               <input type="datetime-local" name="duedate" className="input" />
                             </div>
                             <div className="field">
                               <label className="label">Max grade</label>
                               <input type="number" name="grade_max" defaultValue={100} className="input" />
+                            </div>
+                            <div className="field">
+                              <label className="label">Weight (%)</label>
+                              <input type="number" name="weight" min={0} step="0.01" defaultValue={40} className="input" />
                             </div>
                             <div className="field">
                               <label className="label">Submission</label>
@@ -498,11 +570,11 @@ export default async function ManagePage({
                         {type === "quiz" && (
                           <>
                             <div className="field">
-                              <label className="label">Opens</label>
+                              <label className="label">Opens (WIB)</label>
                               <input type="datetime-local" name="open_at" className="input" />
                             </div>
                             <div className="field">
-                              <label className="label">Closes</label>
+                              <label className="label">Closes (WIB)</label>
                               <input type="datetime-local" name="close_at" className="input" />
                             </div>
                             <div className="field">
@@ -513,6 +585,31 @@ export default async function ManagePage({
                               <label className="label">Max attempts</label>
                               <input type="number" name="max_attempts" defaultValue={1} className="input" />
                             </div>
+                            <div className="field">
+                              <label className="label">Max grade</label>
+                              <input
+                                type="number"
+                                name="grade_max"
+                                min={1}
+                                step="0.01"
+                                defaultValue={100}
+                                className="input"
+                              />
+                            </div>
+                            <div className="field">
+                              <label className="label">Weight (%)</label>
+                              <input
+                                type="number"
+                                name="weight"
+                                min={0}
+                                step="0.01"
+                                defaultValue={20}
+                                className="input"
+                              />
+                            </div>
+                            <p className="sm:col-span-2 text-[11.5px] text-ink-3">
+                              Soal ditambahkan setelah kuis dibuat melalui tombol <strong>Bank soal</strong>.
+                            </p>
                           </>
                         )}
 
@@ -578,9 +675,10 @@ export default async function ManagePage({
                 </details>
               </div>
             </section>
-          );
+            ),
+          };
         })}
-      </div>
+      />
 
       {/* -------------------------------------------------------- grade items */}
       <section className="card mt-5 overflow-hidden">

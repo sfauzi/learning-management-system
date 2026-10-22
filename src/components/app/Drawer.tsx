@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { isStaff } from "@/lib/roles";
 import type { Profile } from "@/lib/types";
@@ -13,16 +13,33 @@ type CourseLink = { id: number; fullname: string; shortname: string; color: stri
 export function Drawer({
   user,
   courses,
-  collapsed = false,
-  onToggle,
+  collapsed: initialCollapsed = false,
 }: {
   user: Profile;
   courses: CourseLink[];
   collapsed?: boolean;
-  onToggle?: () => void;
 }) {
   const pathname = usePathname();
-  const [pending, startTransition] = useTransition();
+
+  /**
+   * Collapse is applied locally for instant feedback and mirrored into a cookie
+   * for the next server render. A server action would round-trip and the router
+   * cache can serve the old layout, which made the toggle look broken until a
+   * manual reload.
+   */
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
+
+  useEffect(() => {
+    setCollapsed(initialCollapsed);
+  }, [initialCollapsed]);
+
+  const toggle = () => {
+    setCollapsed((current) => {
+      const next = !current;
+      document.cookie = `lms_sidebar=${next ? "collapsed" : "expanded"}; path=/; max-age=31536000; samesite=lax`;
+      return next;
+    });
+  };
   const isActive = (href: string) =>
     pathname === href || (href !== "/my" && pathname.startsWith(`${href}/`));
   const teacher = user.role === "teacher" || isStaff(user);
@@ -45,8 +62,7 @@ export function Drawer({
       data-collapsed={collapsed ? "true" : "false"}
       className={cn(
         "hidden shrink-0 flex-col gap-4 border-r border-[var(--color-line-soft)] bg-white py-3 transition-[width] duration-200 lg:flex",
-        collapsed ? "w-[68px] px-2" : "w-[250px] px-3",
-        pending && "opacity-80"
+        collapsed ? "w-[68px] px-2" : "w-[250px] px-3"
       )}
     >
       <div className={cn("flex items-center gap-1", collapsed ? "justify-center" : "justify-between px-1")}>
@@ -57,11 +73,7 @@ export function Drawer({
         )}
         <button
           type="button"
-          onClick={() => {
-            if (onToggle) {
-              startTransition(onToggle);
-            }
-          }}
+          onClick={toggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={!collapsed}
           title={collapsed ? "Perluas sidebar" : "Ringkas sidebar"}

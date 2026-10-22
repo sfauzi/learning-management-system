@@ -1,15 +1,14 @@
 "use client";
 
 import { Drawer } from "@/components/app/Drawer";
-import { toggleSidebar } from "@/app/actions/prefs";
 import type { Profile } from "@/lib/types";
 
 /**
- * Client shell for the sidebar + content area.
+ * Sidebar + content shell.
  *
- * The collapse state is rendered by the server (from a cookie) and passed down,
- * so the first paint already has the right width; this component only supplies
- * the toggle handler, which flips the cookie through a server action.
+ * The collapse state is rendered by the server (from the lms_sidebar cookie) and
+ * handed down as the initial value, so the first paint already has the right
+ * width; the Drawer then flips it locally and writes the cookie itself.
  */
 export function SidebarShell({
   user,
@@ -25,14 +24,7 @@ export function SidebarShell({
   return (
     <div className="flex items-start">
       <div className="sticky top-16 hidden max-h-[calc(100vh-4rem)] overflow-y-auto lg:block">
-        <Drawer
-          user={user}
-          courses={courses}
-          collapsed={collapsed}
-          onToggle={() => {
-            void toggleSidebar();
-          }}
-        />
+        <Drawer user={user} courses={courses} collapsed={collapsed} />
       </div>
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">{children}</main>
     </div>

@@ -19,8 +19,12 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Safety net: a single oversized child must never create a page-wide
+       horizontal scrollbar. `clip` (not `hidden`) keeps position: sticky working. */
+    overflow-x: clip;
   }
   body {
+    overflow-x: clip;
     font-family: var(--font-sans);
     color: var(--color-ink);
     background: #fff;

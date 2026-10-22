@@ -35,7 +35,8 @@ export function Topbar({
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--color-line-soft)] bg-white">
-      <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+      {/* min-w-0 on every flex child: the row must shrink, never push the page wide */}
+      <div className="flex h-16 min-w-0 items-center gap-2 px-4 sm:gap-3 sm:px-6">
         <Link href="/my" className="flex shrink-0 items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/img/logo_bg_white.png" alt={settings.site_name} className="h-8 w-auto" />
@@ -47,7 +48,8 @@ export function Topbar({
           </span>
         </Link>
 
-        <nav className="ml-4 hidden items-center gap-0.5 xl:flex">
+        {/* scrolls inside itself when space runs out, so it can never widen the page */}
+        <nav className="no-scrollbar ml-2 hidden min-w-0 items-center gap-0.5 overflow-x-auto xl:flex">
           {items.slice(0, 6).map((item) => (
             <Link
               key={item.href}
@@ -59,14 +61,17 @@ export function Topbar({
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1">
-          <form action="/course" className="hidden items-center gap-1.5 rounded-lg bg-soft px-2.5 py-1.5 md:flex">
-            <Icon name="search" size={15} className="text-ink-3" />
+        <div className="ml-auto flex min-w-0 shrink items-center gap-1">
+          <form
+            action="/course"
+            className="hidden min-w-0 max-w-[9rem] items-center gap-1.5 rounded-lg bg-soft px-2.5 py-1.5 md:flex xl:max-w-[11rem] 2xl:max-w-[13rem]"
+          >
+            <Icon name="search" size={15} className="shrink-0 text-ink-3" />
             <input
               type="search"
               name="q"
               placeholder="Search courses"
-              className="w-36 bg-transparent text-[13px] outline-none placeholder:text-ink-4 lg:w-48"
+              className="w-full min-w-0 bg-transparent text-[13px] outline-none placeholder:text-ink-4"
             />
           </form>
 
@@ -91,7 +96,7 @@ export function Topbar({
             )}
           </Link>
 
-          <details className="group relative">
+          <details className="group relative shrink-0">
             <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-soft">
               <Avatar
                 name={user.full_name}
@@ -102,7 +107,7 @@ export function Topbar({
                 }
                 size={30}
               />
-              <span className="hidden max-w-[120px] truncate text-[13px] font-semibold text-ink sm:block">
+              <span className="hidden max-w-[100px] truncate text-[13px] font-semibold text-ink lg:block">
                 {user.full_name}
               </span>
               <Icon name="chevronDown" size={14} className="text-ink-3" />
